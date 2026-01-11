@@ -15,12 +15,13 @@ var isProduction = process.env.NODE_ENV === "production";
 // Create global app object
 var app = express();
 
+// Middleware
 app.use(cors());
+app.use(bodyParser.json()); // Use body-parser to parse JSON requests
 
 // Normal express config defaults
 app.use(require("morgan")("dev"));
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
 
 app.use(require("method-override")());
 app.use(express.static(__dirname + "/public"));
@@ -42,11 +43,10 @@ if (!process.env.MONGODB_URI) {
   console.warn("Missing MONGODB_URI in env, please add it to your .env file");
 }
 
-mongoose.connect(process.env.MONGODB_URI);
-if (isProduction) {
-} else {
-  mongoose.set("debug", true);
-}
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('MongoDB connected'))
+    .catch(err => console.error('MongoDB connection error:', err));
 
 require("./models/User");
 require("./models/Item");

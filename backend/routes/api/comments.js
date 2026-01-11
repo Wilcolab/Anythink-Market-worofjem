@@ -13,10 +13,10 @@ module.exports = router;
 // 1. GET /api/comments - Retrieve all comments
 router.get("/", async (req, res) => {
     try {
-        const comments = await CommentModel.find();
-        res.json(comments);
+        const comments = await CommentModel.find().lean(); // Use lean for better performance
+        return res.status(200).json({ success: true, data: comments });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        return res.status(500).json({ success: false, message: error.message });
     }
 });
 
@@ -39,11 +39,11 @@ router.get("/test", (req, res) => {
 // 3. GET /api/comments/:id - Retrieve a specific comment by ID
 router.get('/:id', async (req, res) => {
     try {
-        const comment = await CommentModel.findById(req.params.id);
-        if (!comment) return res.status(404).json({ message: 'Comment not found' });
-        res.json(comment);
+        const comment = await CommentModel.findById(req.params.id).lean(); // Use lean for better performance
+        if (!comment) return res.status(404).json({ success: false, message: 'Comment not found' });
+        return res.status(200).json({ success: true, data: comment });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        return res.status(500).json({ success: false, message: error.message });
     }
 });
 
