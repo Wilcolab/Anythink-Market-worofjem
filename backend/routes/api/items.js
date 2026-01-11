@@ -1,331 +1,231 @@
-var router = require("express").Router();
-var mongoose = require("mongoose");
-var Item = mongoose.model("Item");
-var Comment = mongoose.model("Comment");
-var User = mongoose.model("User");
-var auth = require("../auth");
+const router = require("express").Router();
+const mongoose = require("mongoose");
+const Item = mongoose.model("Item");
+const Comment = mongoose.model("Comment");
+const User = mongoose.model("User");
+const auth = require("../auth");
 const { sendEvent } = require("../../lib/event");
 
 // Preload item objects on routes with ':item'
-router.param("item", function(req, res, next, slug) {
-  Item.findOne({ slug: slug })
-    .populate("seller")
-    .then(function(item) {
-      if (!item) {
-        return res.sendStatus(404);
-      }
-
-      req.item = item;
-
-      return next();
-    })
-    .catch(next);
+router.param("item", async (req, res, next, slug) => {
+  try {
+    const item = await Item.findOne({ slug }).populate("seller");
+    if (!item) return res.sendStatus(404);
+    req.item = item;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 });
 
-router.param("comment", function(req, res, next, id) {
-  Comment.findById(id)
-    .then(function(comment) {
-      if (!comment) {
-        return res.sendStatus(404);
-      }
-
-      req.comment = comment;
-
-      return next();
-    })
-    .catch(next);
+router.param("comment", async (req, res, next, id) => {
+  try {
+    const comment = await Comment.findById(id);
+    if (!comment) return res.sendStatus(404);
+    req.comment = comment;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 });
 
-router.get("/", auth.optional, function(req, res, next) {
-  var query = {};
-  var limit = 100;
-  var offset = 0;
+router.get("/", auth.optional, async (req, res, next) => {
+  try {
+    const query = {};
+    const limit = typeof req.query.limit !== 'undefined' ? Number(req.query.limit) : 100;
+    const offset = typeof req.query.offset !== 'undefined' ? Number(req.query.offset) : 0;
 
-  if (typeof req.query.limit !== "undefined") {
-    limit = req.query.limit;
-  }
+    if (typeof req.query.tag !== 'undefined') query.tagList = { $in: [req.query.tag] };
 
-  if (typeof req.query.offset !== "undefined") {
-    offset = req.query.offset;
-  }
+    const [seller, favoriter] = await Promise.all([
+      req.query.seller ? User.findOne({ username: req.query.seller }) : null,
+      req.query.favorited ? User.findOne({ username: req.query.favorited }) : null
+    ]);
 
-  if (typeof req.query.tag !== "undefined") {
-    query.tagList = { $in: [req.query.tag] };
-  }
+    if (seller) query.seller = seller._id;
 
-  Promise.all([
-    req.query.seller ? User.findOne({ username: req.query.seller }) : null,
-    req.query.favorited ? User.findOne({ username: req.query.favorited }) : null
-  ])
-    .then(function(results) {
-      var seller = results[0];
-      var favoriter = results[1];
-
-      if (seller) {
-        query.seller = seller._id;
-      }
-
-      if (favoriter) {
-        query._id = { $in: favoriter.favorites };
-      } else if (req.query.favorited) {
-        query._id = { $in: [] };
-      }
-
-      return Promise.all([
-        Item.find(query)
-          .limit(Number(limit))
-          .skip(Number(offset))
-          .sort({ createdAt: "desc" })
-          .exec(),
-        Item.count(query).exec(),
-        req.payload ? User.findById(req.payload.id) : null
-      ]).then(async function(results) {
-        var items = results[0];
-        var itemsCount = results[1];
-        var user = results[2];
-        return res.json({
-          items: await Promise.all(
-            items.map(async function(item) {
-              item.seller = await User.findById(item.seller);
-              return item.toJSONFor(user);
-            })
-          ),
-          itemsCount: itemsCount
-        });
-      });
-    })
-    .catch(next);
-});
-
-router.get("/feed", auth.required, function(req, res, next) {
-  var limit = 20;
-  var offset = 0;
-
-  if (typeof req.query.limit !== "undefined") {
-    limit = req.query.limit;
-  }
-
-  if (typeof req.query.offset !== "undefined") {
-    offset = req.query.offset;
-  }
-
-  User.findById(req.payload.id).then(function(user) {
-    if (!user) {
-      return res.sendStatus(401);
+    if (favoriter) {
+      query._id = { $in: favoriter.favorites };
+    } else if (req.query.favorited) {
+      query._id = { $in: [] };
     }
 
-    Promise.all([
-      Item.find({ seller: { $in: user.following } })
-        .limit(Number(limit))
-        .skip(Number(offset))
-        .populate("seller")
-        .exec(),
-      Item.count({ seller: { $in: user.following } })
-    ])
-      .then(function(results) {
-        var items = results[0];
-        var itemsCount = results[1];
+    const [items, itemsCount, user] = await Promise.all([
+      Item.find(query).limit(limit).skip(offset).sort({ createdAt: 'desc' }).exec(),
+      Item.countDocuments(query).exec(),
+      req.payload ? User.findById(req.payload.id) : null
+    ]);
 
-        return res.json({
-          items: items.map(function(item) {
-            return item.toJSONFor(user);
-          }),
-          itemsCount: itemsCount
-        });
+    const itemsForUser = await Promise.all(
+      items.map(async item => {
+        item.seller = await User.findById(item.seller);
+        return item.toJSONFor(user);
       })
-      .catch(next);
-  });
+    );
+
+    return res.json({ items: itemsForUser, itemsCount });
+  } catch (err) {
+    return next(err);
+  }
 });
 
-router.post("/", auth.required, function(req, res, next) {
-  User.findById(req.payload.id)
-    .then(function(user) {
-      if (!user) {
-        return res.sendStatus(401);
-      }
+router.get('/feed', auth.required, async (req, res, next) => {
+  try {
+    const limit = typeof req.query.limit !== 'undefined' ? Number(req.query.limit) : 20;
+    const offset = typeof req.query.offset !== 'undefined' ? Number(req.query.offset) : 0;
 
-      var item = new Item(req.body.item);
+    const user = await User.findById(req.payload.id);
+    if (!user) return res.sendStatus(401);
 
-      item.seller = user;
+    const [items, itemsCount] = await Promise.all([
+      Item.find({ seller: { $in: user.following } })
+        .limit(limit)
+        .skip(offset)
+        .populate('seller')
+        .exec(),
+      Item.countDocuments({ seller: { $in: user.following } })
+    ]);
 
-      return item.save().then(function() {
-        sendEvent('item_created', { item: req.body.item })
-        return res.json({ item: item.toJSONFor(user) });
-      });
-    })
-    .catch(next);
+    return res.json({ items: items.map(i => i.toJSONFor(user)), itemsCount });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/', auth.required, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.payload.id);
+    if (!user) return res.sendStatus(401);
+
+    const item = new Item(req.body.item);
+    item.seller = user;
+
+    await item.save();
+    sendEvent('item_created', { item: req.body.item });
+    return res.json({ item: item.toJSONFor(user) });
+  } catch (err) {
+    return next(err);
+  }
 });
 
 // return a item
-router.get("/:item", auth.optional, function(req, res, next) {
-  Promise.all([
-    req.payload ? User.findById(req.payload.id) : null,
-    req.item.populate("seller").execPopulate()
-  ])
-    .then(function(results) {
-      var user = results[0];
-
-      return res.json({ item: req.item.toJSONFor(user) });
-    })
-    .catch(next);
+router.get('/:item', auth.optional, async (req, res, next) => {
+  try {
+    const user = req.payload ? await User.findById(req.payload.id) : null;
+    await req.item.populate('seller').execPopulate();
+    return res.json({ item: req.item.toJSONFor(user) });
+  } catch (err) {
+    return next(err);
+  }
 });
 
 // update item
-router.put("/:item", auth.required, function(req, res, next) {
-  User.findById(req.payload.id).then(function(user) {
-    if (req.item.seller._id.toString() === req.payload.id.toString()) {
-      if (typeof req.body.item.title !== "undefined") {
-        req.item.title = req.body.item.title;
-      }
+router.put('/:item', auth.required, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.payload.id);
+    if (req.item.seller._id.toString() !== req.payload.id.toString()) return res.sendStatus(403);
 
-      if (typeof req.body.item.description !== "undefined") {
-        req.item.description = req.body.item.description;
-      }
+    const fields = ['title', 'description', 'image', 'tagList'];
+    fields.forEach(field => {
+      if (typeof req.body.item[field] !== 'undefined') req.item[field] = req.body.item[field];
+    });
 
-      if (typeof req.body.item.image !== "undefined") {
-        req.item.image = req.body.item.image;
-      }
-
-      if (typeof req.body.item.tagList !== "undefined") {
-        req.item.tagList = req.body.item.tagList;
-      }
-
-      req.item
-        .save()
-        .then(function(item) {
-          return res.json({ item: item.toJSONFor(user) });
-        })
-        .catch(next);
-    } else {
-      return res.sendStatus(403);
-    }
-  });
+    const item = await req.item.save();
+    return res.json({ item: item.toJSONFor(user) });
+  } catch (err) {
+    return next(err);
+  }
 });
 
 // delete item
-router.delete("/:item", auth.required, function(req, res, next) {
-  User.findById(req.payload.id)
-    .then(function(user) {
-      if (!user) {
-        return res.sendStatus(401);
-      }
+router.delete('/:item', auth.required, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.payload.id);
+    if (!user) return res.sendStatus(401);
 
-      if (req.item.seller._id.toString() === req.payload.id.toString()) {
-        return req.item.remove().then(function() {
-          return res.sendStatus(204);
-        });
-      } else {
-        return res.sendStatus(403);
-      }
-    })
-    .catch(next);
+    if (req.item.seller._id.toString() === req.payload.id.toString()) {
+      await req.item.remove();
+      return res.sendStatus(204);
+    }
+
+    return res.sendStatus(403);
+  } catch (err) {
+    return next(err);
+  }
 });
 
 // Favorite an item
-router.post("/:item/favorite", auth.required, function(req, res, next) {
-  var itemId = req.item._id;
+router.post('/:item/favorite', auth.required, async (req, res, next) => {
+  try {
+    const itemId = req.item._id;
+    const user = await User.findById(req.payload.id);
+    if (!user) return res.sendStatus(401);
 
-  User.findById(req.payload.id)
-    .then(function(user) {
-      if (!user) {
-        return res.sendStatus(401);
-      }
-
-      return user.favorite(itemId).then(function() {
-        return req.item.updateFavoriteCount().then(function(item) {
-          return res.json({ item: item.toJSONFor(user) });
-        });
-      });
-    })
-    .catch(next);
+    await user.favorite(itemId);
+    const item = await req.item.updateFavoriteCount();
+    return res.json({ item: item.toJSONFor(user) });
+  } catch (err) {
+    return next(err);
+  }
 });
 
 // Unfavorite an item
-router.delete("/:item/favorite", auth.required, function(req, res, next) {
-  var itemId = req.item._id;
+router.delete('/:item/favorite', auth.required, async (req, res, next) => {
+  try {
+    const itemId = req.item._1d || req.item._id;
+    const user = await User.findById(req.payload.id);
+    if (!user) return res.sendStatus(401);
 
-  User.findById(req.payload.id)
-    .then(function(user) {
-      if (!user) {
-        return res.sendStatus(401);
-      }
-
-      return user.unfavorite(itemId).then(function() {
-        return req.item.updateFavoriteCount().then(function(item) {
-          return res.json({ item: item.toJSONFor(user) });
-        });
-      });
-    })
-    .catch(next);
+    await user.unfavorite(itemId);
+    const item = await req.item.updateFavoriteCount();
+    return res.json({ item: item.toJSONFor(user) });
+  } catch (err) {
+    return next(err);
+  }
 });
 
 // return an item's comments
-router.get("/:item/comments", auth.optional, function(req, res, next) {
-  Promise.resolve(req.payload ? User.findById(req.payload.id) : null)
-    .then(function(user) {
-      return req.item
-        .populate({
-          path: "comments",
-          populate: {
-            path: "seller"
-          },
-          options: {
-            sort: {
-              createdAt: "desc"
-            }
-          }
-        })
-        .execPopulate()
-        .then(function(item) {
-          return res.json({
-            comments: req.item.comments.map(function(comment) {
-              return comment.toJSONFor(user);
-            })
-          });
-        });
-    })
-    .catch(next);
+router.get('/:item/comments', auth.optional, async (req, res, next) => {
+  try {
+    const user = req.payload ? await User.findById(req.payload.id) : null;
+    await req.item
+      .populate({ path: 'comments', populate: { path: 'seller' }, options: { sort: { createdAt: 'desc' } } })
+      .execPopulate();
+
+    return res.json({ comments: req.item.comments.map(c => c.toJSONFor(user)) });
+  } catch (err) {
+    return next(err);
+  }
 });
 
 // create a new comment
-router.post("/:item/comments", auth.required, function(req, res, next) {
-  User.findById(req.payload.id)
-    .then(function(user) {
-      if (!user) {
-        return res.sendStatus(401);
-      }
+router.post('/:item/comments', auth.required, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.payload.id);
+    if (!user) return res.sendStatus(401);
 
-      var comment = new Comment(req.body.comment);
-      comment.item = req.item;
-      comment.seller = user;
+    const comment = new Comment(req.body.comment);
+    comment.item = req.item;
+    comment.seller = user;
 
-      return comment.save().then(function() {
-        req.item.comments = req.item.comments.concat([comment]);
-
-        return req.item.save().then(function(item) {
-          res.json({ comment: comment.toJSONFor(user) });
-        });
-      });
-    })
-    .catch(next);
+    await comment.save();
+    req.item.comments = req.item.comments.concat([comment]);
+    await req.item.save();
+    return res.json({ comment: comment.toJSONFor(user) });
+  } catch (err) {
+    return next(err);
+  }
 });
 
-router.delete("/:item/comments/:comment", auth.required, function(
-  req,
-  res,
-  next
-) {
-  req.item.comments.remove(req.comment._id);
-  req.item
-    .save()
-    .then(
-      Comment.find({ _id: req.comment._id })
-        .remove()
-        .exec()
-    )
-    .then(function() {
-      res.sendStatus(204);
-    });
+router.delete('/:item/comments/:comment', auth.required, async (req, res, next) => {
+  try {
+    req.item.comments.remove(req.comment._id);
+    await req.item.save();
+    await Comment.deleteOne({ _id: req.comment._id }).exec();
+    return res.sendStatus(204);
+  } catch (err) {
+    return next(err);
+  }
 });
 
 module.exports = router;

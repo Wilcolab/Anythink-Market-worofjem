@@ -1,8 +1,6 @@
 const router = require("express").Router();
 const mongoose = require("mongoose");
 const CommentModel = mongoose.model("Comment");
-
-module.exports = router;
 // Hey GitHub Copilot, please implement the following routes for comments:
 // 1. GET /api/comments - Retrieve all comments
 // 2. POST /api/comments - Create a new comment
@@ -68,3 +66,5 @@ router.delete('/:id', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
+
+module.exports = router;

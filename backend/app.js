@@ -43,11 +43,6 @@ if (!process.env.MONGODB_URI) {
   console.warn("Missing MONGODB_URI in env, please add it to your .env file");
 }
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log('MongoDB connected'))
-    .catch(err => console.error('MongoDB connection error:', err));
-
 require("./models/User");
 require("./models/Item");
 require("./models/Comment");
@@ -84,6 +79,18 @@ app.use(function(err, req, res, next) {
 });
 
 // finally, let's start our server...
-var server = app.listen(process.env.PORT || 3000, function() {
-  console.log("Listening on port " + server.address().port);
-});
+if (require.main === module) {
+  // connect to DB when starting server directly
+  if (process.env.MONGODB_URI) {
+    mongoose
+      .connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+      .then(() => console.log('MongoDB connected'))
+      .catch(err => console.error('MongoDB connection error:', err));
+  }
+
+  var server = app.listen(process.env.PORT || 3000, function() {
+    console.log("Listening on port " + server.address().port);
+  });
+}
+
+module.exports = app;
