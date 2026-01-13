@@ -1,0 +1,31 @@
+Create a robust JavaScript function toCamelCase that:
+
+1. HANDLES INPUT VALIDATION:
+   - Throws an error if input is null or undefined
+   - Throws an error if input is not a string
+   - Returns empty string for empty/whitespace-only inputs
+
+2. HANDLES EDGE CASES:
+   - Handles multiple consecutive separators (spaces, underscores, hyphens)
+   - Trims leading and trailing whitespace
+   - Handles ALL_CAPS input like "SCREEN_NAME" → "screenName"
+   - Handles mixed separators like "hello_world-example name"
+   - Handles numbers in strings like "user_123_id" → "user123Id"
+
+3. CONVERSION RULES:
+   - First word stays lowercase
+   - Capitalize first letter of all subsequent words
+   - Remove all separators (spaces, underscores, hyphens)
+   - Case-insensitive input handling
+
+4. ERROR HANDLING:
+   - Provide meaningful error messages
+   - Include try-catch examples
+
+5. EXAMPLES:
+   - "first name" → "firstName"
+   - "user_id" → "userId"
+   - "SCREEN_NAME" → "screenName"
+   - "mobile-number" → "mobileNumber"
+   - "  hello   world  " → "helloWorld"
+   - "user_123_id" → "user123Id"
