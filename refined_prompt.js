@@ -58,11 +58,11 @@ function toKebabCase(input) {
   // ===== STEP 2: String Transformation Logic =====
   
   return trimmedInput
-    .toLowerCase()                        // Convert to lowercase
-    .replace(/([a-z])([A-Z])/g, '$1-$2') // Handle camelCase inputs
-    .split(/[\s_\-]+/)                    // Split by multiple separators (spaces, underscores, hyphens)
-    .filter(word => word.length > 0)      // Filter empty values
-    .join('-');                            // Join with hyphens (kebab-case format)
+    .toLowerCase()
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .split(/[\s_\-]+/)
+    .filter(word => word.length > 0)
+    .join('-');
 }
 
 module.exports = toKebabCase;
@@ -121,36 +121,3 @@ console.log(`Empty string: "${toKebabCase('')}"`);                  // Output: "
 console.log(`Whitespace only: "${toKebabCase('   ')}"`);            // Output: ""
 console.log(`Single word: "${toKebabCase('hello')}"`);              // Output: "hello"
 console.log(`Mixed separators: "${toKebabCase('hello_world-example name')}"`); // Output: "hello-world-example-name"
-
-// Error handling for undefined input
-try {
-  convertToCamelCase(undefined);
-} catch (error) {
-  console.error('❌ Error (undefined input):', error.message);
-}
-
-// Error handling for number input
-try {
-  convertToCamelCase(123);
-} catch (error) {
-  console.error('❌ Error (number input):', error.message);
-}
-
-// Error handling for object input
-try {
-  convertToCamelCase({});
-} catch (error) {
-  console.error('❌ Error (object input):', error.message);
-}
-
-// Error handling for array input
-try {
-  convertToCamelCase(['hello', 'world']);
-} catch (error) {
-  console.error('❌ Error (array input):', error.message);
-}
-
-// Valid edge case: empty string
-console.log('\n=== Edge Cases ===');
-console.log(`Empty string result: "${convertToCamelCase('')}"`); // Output: ""
-console.log(`Whitespace-only result: "${convertToCamelCase('   ')}"`); // Output: ""

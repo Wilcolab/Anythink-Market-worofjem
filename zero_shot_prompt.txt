@@ -1,1 +1,1 @@
-Make a function to convert text to snake case
+Convert the text to snake_case format

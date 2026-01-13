@@ -6,13 +6,13 @@
 
 function convertToCamelCase(text) {
   return text
-    .split(/[\s\-_]+/)                      // Split by spaces, hyphens, or underscores
+    .split(/[\s\-_]+/)
     .map((word, index) => 
       index === 0 
-        ? word.toLowerCase()                // Keep first word lowercase
-        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() // Capitalize other words
+        ? word.toLowerCase()
+        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
     )
-    .join('');                               // Join without separator
+    .join('');
 }
 
 module.exports = convertToCamelCase;

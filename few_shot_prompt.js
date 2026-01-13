@@ -33,14 +33,14 @@ function convertToCamelCase(str) {
   // and filter out empty values from splits
   return trimmedStr
     .toLowerCase()
-    .split(/[\s_\-]+/)                      // Split by spaces, underscores, or hyphens
-    .filter(word => word.length > 0)        // Ignore empty values from splits
+    .split(/[\s_\-]+/)
+    .filter(word => word.length > 0)
     .map((word, index) =>
       index === 0 
-        ? word                              // Keep first word lowercase
-        : word.charAt(0).toUpperCase() + word.slice(1) // Capitalize first letter of other words
+        ? word
+        : word.charAt(0).toUpperCase() + word.slice(1)
     )
-    .join('');                               // Join without separator
+    .join('');
 }
 
 module.exports = convertToCamelCase;

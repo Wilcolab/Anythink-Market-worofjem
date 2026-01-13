@@ -64,11 +64,11 @@ function toKebabCase(input) {
   // ===== STEP 2: String Transformation Logic =====
   
   return trimmedInput
-    .toLowerCase()                        // Convert to lowercase
-    .replace(/([a-z])([A-Z])/g, '$1-$2') // Handle camelCase by inserting hyphens before uppercase letters
-    .split(/[\s_\-]+/)                    // Split by multiple consecutive separators (spaces, underscores, hyphens)
-    .filter(word => word.length > 0)      // Filter out empty values from splits
-    .join('-');                            // Join with hyphens (kebab-case format)
+    .toLowerCase()
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .split(/[\s_\-]+/)
+    .filter(word => word.length > 0)
+    .join('-');
 }
 
 module.exports = toKebabCase;
