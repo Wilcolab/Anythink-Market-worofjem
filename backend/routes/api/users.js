@@ -1,41 +1,55 @@
-const mongoose = require("mongoose");
-const router = require("express").Router();
-const passport = require("passport");
-const User = mongoose.model("User");
-const auth = require("../auth");
+var mongoose = require("mongoose");
+var router = require("express").Router();
+var passport = require("passport");
+var User = mongoose.model("User");
+var auth = require("../auth");
 const { sendEvent } = require("../../lib/event");
 
-router.get("/user", auth.required, async (req, res, next) => {
-  try {
-    const user = await User.findById(req.payload.id);
-    if (!user) return res.sendStatus(401);
-    return res.json({ user: user.toAuthJSON() });
-  } catch (err) {
-    return next(err);
-  }
+router.get("/user", auth.required, function(req, res, next) {
+  User.findById(req.payload.id)
+    .then(function(user) {
+      if (!user) {
+        return res.sendStatus(401);
+      }
+
+      return res.json({ user: user.toAuthJSON() });
+    })
+    .catch(next);
 });
 
-router.put("/user", auth.required, async (req, res, next) => {
-  try {
-    const user = await User.findById(req.payload.id);
-    if (!user) return res.sendStatus(401);
+router.put("/user", auth.required, function(req, res, next) {
+  User.findById(req.payload.id)
+    .then(function(user) {
+      if (!user) {
+        return res.sendStatus(401);
+      }
 
-    // only update fields that were actually passed
-    const updates = ['username', 'email', 'bio', 'image'];
-    updates.forEach(field => {
-      if (typeof req.body.user[field] !== 'undefined') user[field] = req.body.user[field];
-    });
-    if (typeof req.body.user.password !== 'undefined') user.setPassword(req.body.user.password);
+      // only update fields that were actually passed...
+      if (typeof req.body.user.username !== "undefined") {
+        user.username = req.body.user.username;
+      }
+      if (typeof req.body.user.email !== "undefined") {
+        user.email = req.body.user.email;
+      }
+      if (typeof req.body.user.bio !== "undefined") {
+        user.bio = req.body.user.bio;
+      }
+      if (typeof req.body.user.image !== "undefined") {
+        user.image = req.body.user.image;
+      }
+      if (typeof req.body.user.password !== "undefined") {
+        user.setPassword(req.body.user.password);
+      }
 
-    await user.save();
-    return res.json({ user: user.toAuthJSON() });
-  } catch (err) {
-    return next(err);
-  }
+      return user.save().then(function() {
+        return res.json({ user: user.toAuthJSON() });
+      });
+    })
+    .catch(next);
 });
 
-router.post("/users/login", (req, res, next) => {
-  if (!req.body.user || !req.body.user.email) {
+router.post("/users/login", function(req, res, next) {
+  if (!req.body.user.email) {
     return res.status(422).json({ errors: { email: "can't be blank" } });
   }
 
@@ -43,29 +57,34 @@ router.post("/users/login", (req, res, next) => {
     return res.status(422).json({ errors: { password: "can't be blank" } });
   }
 
-  passport.authenticate("local", { session: false }, (err, user, info) => {
-    if (err) return next(err);
+  passport.authenticate("local", { session: false }, function(err, user, info) {
+    if (err) {
+      return next(err);
+    }
+
     if (user) {
       user.token = user.generateJWT();
       return res.json({ user: user.toAuthJSON() });
+    } else {
+      return res.status(422).json(info);
     }
-    return res.status(422).json(info);
   })(req, res, next);
 });
 
-router.post("/users", async (req, res, next) => {
-  try {
-    const user = new User();
-    user.username = req.body.user.username;
-    user.email = req.body.user.email;
-    user.setPassword(req.body.user.password);
+router.post("/users", function(req, res, next) {
+  var user = new User();
 
-    await user.save();
-    sendEvent('user_created', { username: req.body.user.username });
-    return res.json({ user: user.toAuthJSON() });
-  } catch (err) {
-    return next(err);
-  }
+  user.username = req.body.user.username;
+  user.email = req.body.user.email;
+  user.setPassword(req.body.user.password);
+
+  user
+    .save()
+    .then(function() {
+      sendEvent('user_created', { username: req.body.user.username })
+      return res.json({ user: user.toAuthJSON() });
+    })
+    .catch(next);
 });
 
 module.exports = router;

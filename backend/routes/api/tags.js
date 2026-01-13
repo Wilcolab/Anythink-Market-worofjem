@@ -1,15 +1,12 @@
-const router = require('express').Router();
-const mongoose = require('mongoose');
-const Item = mongoose.model('Item');
+var router = require('express').Router();
+var mongoose = require('mongoose');
+var Item = mongoose.model('Item');
 
 // return a list of tags
-router.get('/', async (req, res, next) => {
-  try {
-    const tags = await Item.find().distinct('tagList');
-    return res.json({ tags });
-  } catch (err) {
-    return next(err);
-  }
+router.get('/', function(req, res, next) {
+  Item.find().distinct('tagList').then(function(tags){
+    return res.json({tags: tags});
+  }).catch(next);
 });
 
 module.exports = router;

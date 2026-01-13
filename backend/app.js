@@ -15,13 +15,12 @@ var isProduction = process.env.NODE_ENV === "production";
 // Create global app object
 var app = express();
 
-// Middleware
 app.use(cors());
-app.use(bodyParser.json()); // Use body-parser to parse JSON requests
 
 // Normal express config defaults
 app.use(require("morgan")("dev"));
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
 app.use(require("method-override")());
 app.use(express.static(__dirname + "/public"));
@@ -41,6 +40,12 @@ if (!isProduction) {
 
 if (!process.env.MONGODB_URI) {
   console.warn("Missing MONGODB_URI in env, please add it to your .env file");
+}
+
+mongoose.connect(process.env.MONGODB_URI);
+if (isProduction) {
+} else {
+  mongoose.set("debug", true);
 }
 
 require("./models/User");
@@ -79,18 +84,6 @@ app.use(function(err, req, res, next) {
 });
 
 // finally, let's start our server...
-if (require.main === module) {
-  // connect to DB when starting server directly
-  if (process.env.MONGODB_URI) {
-    mongoose
-      .connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-      .then(() => console.log('MongoDB connected'))
-      .catch(err => console.error('MongoDB connection error:', err));
-  }
-
-  var server = app.listen(process.env.PORT || 3000, function() {
-    console.log("Listening on port " + server.address().port);
-  });
-}
-
-module.exports = app;
+var server = app.listen(process.env.PORT || 3000, function() {
+  console.log("Listening on port " + server.address().port);
+});
