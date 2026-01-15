@@ -1,9 +1,48 @@
+version: '3.8'
+
 services:
   python-server:
     build:
       context: ./python-server
       dockerfile: Dockerfile
+    container_name: python-server
     ports:
-      - 8000:8000
+      - "8000:8000"
     volumes:
       - ./python-server/src:/app/src
+    environment:
+      - PORT=8000
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/tasks"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  node-server:
+    build:
+      context: ./node-server
+      dockerfile: Dockerfile
+    container_name: node-server
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./node-server/src:/app/src
+      - ./node-server/node_modules:/app/node_modules
+    environment:
+      - PORT=8001
+      - NODE_ENV=development
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - python-server
+
+networks:
+  app-network:
+    driver: bridge

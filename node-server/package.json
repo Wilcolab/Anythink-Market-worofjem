@@ -1,11 +1,14 @@
 {
-  "name": "server",
+  "name": "node-server",
   "version": "1.0.0",
-  "description": "Node.js server with migrated routes from Python FastAPI",
-  "main": "src/main.js",
+  "description": "Simple Express server with Docker",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node src/main.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "nodemon src/index.js",
+    "dev": "nodemon src/index.js",
+    "prod": "node src/index.js",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "keywords": [],
   "author": "",
@@ -13,5 +16,10 @@
   "type": "commonjs",
   "dependencies": {
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
   }
 }
