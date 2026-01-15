@@ -12,11 +12,6 @@ services:
       - PORT=8000
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/tasks"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   node-server:
     build:
@@ -33,11 +28,6 @@ services:
       - NODE_ENV=development
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     depends_on:
       - python-server
 
