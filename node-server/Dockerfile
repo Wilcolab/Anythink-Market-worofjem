@@ -1,9 +1,14 @@
-FROM node:14
+FROM node:18-alpine
 
 WORKDIR /app
 
 COPY package*.json /app
-RUN yarn install
+
+RUN npm install
+
+COPY src /app/src
+COPY jest.config.js /app
+
 EXPOSE 8001
 
-CMD [ "yarn", "start" ]
+CMD [ "npm", "start" ]
