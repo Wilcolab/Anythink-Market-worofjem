@@ -11,4 +11,4 @@ COPY jest.config.js /app
 
 EXPOSE 8001
 
-CMD [ "npm", "start" ]
+CMD [ "npm", "run", "prod" ]
