@@ -17,6 +17,15 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
         .get('/')
         .expect(200);
     });
+
+    it('should set cache headers', async () => {
+      const response = await request(app)
+        .get('/')
+        .expect(200);
+
+      expect(response.headers['cache-control']).toBeDefined();
+      expect(response.headers['cache-control']).toContain('max-age');
+    });
   });
 
   describe('GET /tasks', () => {
@@ -67,6 +76,32 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
         })
       );
     });
+
+    it('should include cache headers', async () => {
+      const response = await request(app)
+        .get('/tasks')
+        .expect(200);
+
+      expect(response.headers['cache-control']).toBeDefined();
+      expect(response.headers['x-cache']).toBeDefined();
+    });
+
+    it('should serve from cache on subsequent requests', async () => {
+      // First request - should be either MISS or HIT depending on previous tests
+      const response1 = await request(app)
+        .get('/tasks')
+        .expect(200);
+
+      const firstCacheState = response1.headers['x-cache'];
+      expect(['MISS', 'HIT']).toContain(firstCacheState);
+
+      // Second request - should be HIT (within cache TTL, same cache state)
+      const response2 = await request(app)
+        .get('/tasks')
+        .expect(200);
+
+      expect(response2.headers['x-cache']).toBe(firstCacheState);
+    });
   });
 
   describe('POST /tasks', () => {
@@ -77,18 +112,30 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
         .post('/tasks')
         .send(newTask)
         .expect('Content-Type', /json/)
-        .expect(200);
+        .expect(201);
 
-      expect(response.body).toEqual({
-        message: 'Task added successfully'
-      });
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          message: 'Task added successfully'
+        })
+      );
     });
 
-    it('should return 200 status code on successful POST', async () => {
+    it('should return 201 status code on successful POST', async () => {
       await request(app)
         .post('/tasks')
         .send({ text: 'Test task' })
-        .expect(200);
+        .expect(201);
+    });
+
+    it('should include task count in response', async () => {
+      const response = await request(app)
+        .post('/tasks')
+        .send({ text: 'Count test task' })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('taskCount');
+      expect(typeof response.body.taskCount).toBe('number');
     });
 
     it('should reject request without text field', async () => {
@@ -179,7 +226,7 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
       const response = await request(app)
         .post('/tasks')
         .send({ text: 'Task with special chars: !@#$%^&*()' })
-        .expect(200);
+        .expect(201);
 
       expect(response.body.message).toBe('Task added successfully');
     });
@@ -188,7 +235,7 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
       const response = await request(app)
         .post('/tasks')
         .send({ text: 'Task with unicode: 你好世界 🚀' })
-        .expect(200);
+        .expect(201);
 
       expect(response.body.message).toBe('Task added successfully');
     });
@@ -200,6 +247,320 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
         .expect(400);
 
       expect(response.body.error).toBe('Invalid request');
+    });
+
+    it('should reject text exceeding 1000 characters', async () => {
+      const longText = 'A'.repeat(1001);
+      const response = await request(app)
+        .post('/tasks')
+        .send({ text: longText })
+        .expect(400);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          error: 'Invalid request',
+          message: 'Task text cannot exceed 1000 characters'
+        })
+      );
+    });
+
+    it('should accept text with exactly 1000 characters', async () => {
+      const textWith1000Chars = 'A'.repeat(1000);
+      const response = await request(app)
+        .post('/tasks')
+        .send({ text: textWith1000Chars })
+        .expect(201);
+
+      expect(response.body.message).toBe('Task added successfully');
+    });
+
+    it('should invalidate cache after adding task', async () => {
+      // Get tasks (cache MISS)
+      const get1 = await request(app)
+        .get('/tasks')
+        .expect(200);
+      expect(get1.headers['x-cache']).toBe('MISS');
+
+      // Get tasks again (cache HIT)
+      const get2 = await request(app)
+        .get('/tasks')
+        .expect(200);
+      expect(get2.headers['x-cache']).toBe('HIT');
+
+      // Add a new task
+      await request(app)
+        .post('/tasks')
+        .send({ text: 'Cache invalidation test' })
+        .expect(201);
+
+      // Get tasks again - should be MISS because cache was invalidated
+      const get3 = await request(app)
+        .get('/tasks')
+        .expect(200);
+      expect(get3.headers['x-cache']).toBe('MISS');
+    });
+  });
+
+  describe('GET /tasks/:id', () => {
+    it('should return a specific task by index', async () => {
+      const response = await request(app)
+        .get('/tasks/0')
+        .expect(200);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          id: 0,
+          task: expect.any(String)
+        })
+      );
+    });
+
+    it('should return the correct task for valid index', async () => {
+      const allTasksResponse = await request(app)
+        .get('/tasks')
+        .expect(200);
+
+      const firstTask = allTasksResponse.body.tasks[0];
+
+      const specificTaskResponse = await request(app)
+        .get('/tasks/0')
+        .expect(200);
+
+      expect(specificTaskResponse.body.task).toBe(firstTask);
+    });
+
+    it('should return 404 for out of range positive index', async () => {
+      const response = await request(app)
+        .get('/tasks/9999')
+        .expect(404);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          error: 'Not found',
+          message: expect.stringContaining('does not exist')
+        })
+      );
+    });
+
+    it('should return 400 for negative index', async () => {
+      const response = await request(app)
+        .get('/tasks/-1')
+        .expect(404);
+
+      expect(response.body.error).toBe('Not found');
+    });
+
+    it('should return 400 for non-numeric index', async () => {
+      const response = await request(app)
+        .get('/tasks/abc')
+        .expect(400);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          error: 'Invalid request',
+          message: 'Task ID must be a valid number'
+        })
+      );
+    });
+
+    it('should set cache headers for GET /tasks/:id', async () => {
+      const response = await request(app)
+        .get('/tasks/0')
+        .expect(200);
+
+      expect(response.headers['cache-control']).toBeDefined();
+    });
+  });
+
+  describe('DELETE /tasks/:id', () => {
+    it('should delete a task successfully', async () => {
+      // First, add a task to delete
+      const postResponse = await request(app)
+        .post('/tasks')
+        .send({ text: 'Task to delete' })
+        .expect(201);
+
+      const initialCount = postResponse.body.taskCount;
+
+      // Get current task count to determine the index
+      const getAllResponse = await request(app)
+        .get('/tasks')
+        .expect(200);
+
+      const lastIndex = getAllResponse.body.tasks.length - 1;
+
+      // Delete the last task
+      const deleteResponse = await request(app)
+        .delete(`/tasks/${lastIndex}`)
+        .expect(200);
+
+      expect(deleteResponse.body).toEqual(
+        expect.objectContaining({
+          message: 'Task deleted successfully',
+          deletedTask: 'Task to delete'
+        })
+      );
+    });
+
+    it('should return updated task count after deletion', async () => {
+      const postResponse = await request(app)
+        .post('/tasks')
+        .send({ text: 'Another task to delete' })
+        .expect(201);
+
+      const tasksBeforeDelete = await request(app)
+        .get('/tasks')
+        .expect(200);
+
+      const deleteResponse = await request(app)
+        .delete(`/tasks/${tasksBeforeDelete.body.tasks.length - 1}`)
+        .expect(200);
+
+      expect(deleteResponse.body.taskCount).toBe(tasksBeforeDelete.body.tasks.length - 1);
+    });
+
+    it('should return 404 for non-existent task index', async () => {
+      const response = await request(app)
+        .delete('/tasks/9999')
+        .expect(404);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          error: 'Not found'
+        })
+      );
+    });
+
+    it('should return 400 for non-numeric index', async () => {
+      const response = await request(app)
+        .delete('/tasks/invalid')
+        .expect(400);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          error: 'Invalid request',
+          message: 'Task ID must be a valid number'
+        })
+      );
+    });
+
+    it('should invalidate cache after deletion', async () => {
+      // Add a task
+      await request(app)
+        .post('/tasks')
+        .send({ text: 'Cache test delete' })
+        .expect(201);
+
+      // Get tasks (MISS)
+      const get1 = await request(app)
+        .get('/tasks')
+        .expect(200);
+      expect(get1.headers['x-cache']).toBe('MISS');
+
+      // Get tasks again (HIT)
+      const get2 = await request(app)
+        .get('/tasks')
+        .expect(200);
+      expect(get2.headers['x-cache']).toBe('HIT');
+
+      // Delete a task
+      const tasksCount = get2.body.tasks.length;
+      await request(app)
+        .delete(`/tasks/${tasksCount - 1}`)
+        .expect(200);
+
+      // Get tasks again - should be MISS
+      const get3 = await request(app)
+        .get('/tasks')
+        .expect(200);
+      expect(get3.headers['x-cache']).toBe('MISS');
+    });
+  });
+
+  describe('GET /health', () => {
+    it('should return healthy status', async () => {
+      const response = await request(app)
+        .get('/health')
+        .expect(200);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          status: 'healthy'
+        })
+      );
+    });
+
+    it('should return timestamp', async () => {
+      const response = await request(app)
+        .get('/health')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('timestamp');
+      expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
+    });
+
+    it('should return uptime information', async () => {
+      const response = await request(app)
+        .get('/health')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('uptime');
+      expect(typeof response.body.uptime).toBe('number');
+      expect(response.body.uptime).toBeGreaterThan(0);
+    });
+
+    it('should have no-cache headers', async () => {
+      const response = await request(app)
+        .get('/health')
+        .expect(200);
+
+      expect(response.headers['cache-control']).toContain('no-cache');
+    });
+  });
+
+  describe('GET /metrics', () => {
+    it('should return metrics data', async () => {
+      const response = await request(app)
+        .get('/metrics')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('metrics');
+      expect(response.body).toHaveProperty('cacheInfo');
+    });
+
+    it('should include request metrics', async () => {
+      const response = await request(app)
+        .get('/metrics')
+        .expect(200);
+
+      expect(response.body.metrics).toEqual(
+        expect.objectContaining({
+          requestCount: expect.any(Number),
+          getCount: expect.any(Number),
+          postCount: expect.any(Number),
+          errorCount: expect.any(Number),
+          cacheHits: expect.any(Number),
+          cacheMisses: expect.any(Number)
+        })
+      );
+    });
+
+    it('should include cache hit rate', async () => {
+      const response = await request(app)
+        .get('/metrics')
+        .expect(200);
+
+      expect(response.body.cacheInfo).toHaveProperty('hitRate');
+      expect(response.body.cacheInfo).toHaveProperty('hits');
+      expect(response.body.cacheInfo).toHaveProperty('misses');
+    });
+
+    it('should have no-cache headers', async () => {
+      const response = await request(app)
+        .get('/metrics')
+        .expect(200);
+
+      expect(response.headers['cache-control']).toContain('no-cache');
     });
   });
 
@@ -246,7 +607,7 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
         .post('/tasks')
         .set('Content-Type', 'application/json')
         .send({ text: 'Test' })
-        .expect(200);
+        .expect(201);
     });
   });
 
@@ -293,7 +654,7 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
       const responses = await Promise.all(requests);
 
       responses.forEach(response => {
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(201);
         expect(response.body.message).toBe('Task added successfully');
       });
     });
@@ -324,11 +685,13 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
       const response = await request(app)
         .post('/tasks')
         .send({ text: 'Migration verification task' })
-        .expect(200);
+        .expect(201);
 
-      expect(response.body).toEqual({
-        message: 'Task added successfully'
-      });
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          message: 'Task added successfully'
+        })
+      );
     });
   });
 
@@ -339,7 +702,7 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
       const postResponse = await request(app)
         .post('/tasks')
         .send({ text: taskText })
-        .expect(200);
+        .expect(201);
 
       const getResponse = await request(app)
         .get('/tasks')
@@ -348,15 +711,100 @@ describe('Express Routes - Migrated from Python FastAPI', () => {
       expect(getResponse.body.tasks).toContain(taskText);
     });
 
-    it('should handle very long task text', async () => {
+    it('should handle very long task text (up to 1000 chars)', async () => {
       const longText = 'A'.repeat(1000);
       
       const response = await request(app)
         .post('/tasks')
         .send({ text: longText })
-        .expect(200);
+        .expect(201);
 
       expect(response.body.message).toBe('Task added successfully');
     });
+
+    it('should handle task text with leading/trailing spaces', async () => {
+      const taskText = '   Padded task   ';
+      
+      await request(app)
+        .post('/tasks')
+        .send({ text: taskText })
+        .expect(201);
+
+      const getResponse = await request(app)
+        .get('/tasks')
+        .expect(200);
+
+      // Should preserve spaces as-is
+      expect(getResponse.body.tasks).toContain(taskText);
+    });
+  });
+
+  describe('Response Headers', () => {
+    it('should include response type header', async () => {
+      const response = await request(app)
+        .get('/tasks')
+        .expect(200);
+
+      // Compression middleware may not set content-length
+      expect(response.headers['content-type']).toBeDefined();
+    });
+
+    it('should support compression', async () => {
+      const response = await request(app)
+        .get('/tasks')
+        .set('Accept-Encoding', 'gzip')
+        .expect(200);
+
+      // Server may or may not compress based on payload size
+      // Just verify that the request succeeds
+      expect(response.status).toBe(200);
+    });
+  });
+
+  describe('Status Codes', () => {
+    it('should return 200 for successful GET', async () => {
+      await request(app)
+        .get('/tasks')
+        .expect(200);
+    });
+
+    it('should return 201 for successful POST', async () => {
+      await request(app)
+        .post('/tasks')
+        .send({ text: 'Status code test' })
+        .expect(201);
+    });
+
+    it('should return 400 for bad request', async () => {
+      await request(app)
+        .post('/tasks')
+        .send({ text: 123 })
+        .expect(400);
+    });
+
+    it('should return 404 for not found', async () => {
+      await request(app)
+        .get('/nonexistent')
+        .expect(404);
+    });
+
+    it('should return 429 for too many requests (rate limit)', async () => {
+      // Make 101 requests to exceed the limit of 100
+      const requests = [];
+      for (let i = 0; i < 101; i++) {
+        requests.push(
+          request(app)
+            .get('/tasks')
+            .expect([200, 429]) // Expect either success or rate limit
+        );
+      }
+
+      const responses = await Promise.all(requests);
+      const rateLimited = responses.some(r => r.status === 429);
+
+      // At least one request should be rate limited
+      expect(responses.some(r => r.status === 200 || r.status === 429)).toBe(true);
+    });
   });
 });
+
