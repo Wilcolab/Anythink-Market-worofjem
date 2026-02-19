@@ -21,7 +21,9 @@ const fewShotPromptTemplate = {
       examples.forEach((example, index) => {
         prompt += `Example ${index + 1}:\n`;
         prompt += `Input: ${example.input}\n`;
-        prompt += `Output: ${example.output}\n\n`;
+        // Support alternative field names: output, sentiment, result, etc.
+        const output = example.output || example.sentiment || example.result || example.label || '';
+        prompt += `Output: ${output}\n\n`;
       });
     }
     

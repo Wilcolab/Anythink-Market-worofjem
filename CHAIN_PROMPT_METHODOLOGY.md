@@ -181,32 +181,29 @@ Refactor a function to improve performance while maintaining functionality.
 const codeRefactorChain = chainPromptTemplate.create(
   "Refactor getUser function to improve performance",
   [
-    "Step 1: Analyze current implementation and identify bottlenecks",
-    "Step 2: Research optimization patterns for similar operations",
-    "Step 3: Propose 2-3 optimization strategies with trade-offs",
-    "Step 4: Implement the recommended optimization",
-    "Step 5: Add comprehensive tests for the refactored function",
-    "Step 6: Benchmark old vs new implementation",
-    "Step 7: Document changes and performance improvements"
+    { title: "Analyze current implementation and identify bottlenecks" },
+    { title: "Research optimization patterns for similar operations", dependsOn: 0 },
+    { title: "Propose 2-3 optimization strategies with trade-offs", dependsOn: 1 },
+    { title: "Implement the recommended optimization", dependsOn: 2 },
+    { title: "Add comprehensive tests for the refactored function", dependsOn: 3 },
+    { title: "Benchmark old vs new implementation", dependsOn: 4 },
+    { title: "Document changes and performance improvements", dependsOn: 5 }
   ]
 );
 
-codeRefactorChain.withDependencies({
-  2: [1],  // Research after analysis
-  3: [2],  // Propose after research
-  4: [3],  // Implement after selection
-  5: [4],  // Test after implementation
-  6: [5],  // Benchmark with tests passing
-  7: [6]   // Document after validation
-});
-
-codeRefactorChain.withBranches({
-  3: {
-    condition: "if_optimization_simple",
-    true: 4,   // Skip testing for simple changes
-    false: 5   // Full testing for complex changes
-  }
-});
+// Or using string steps (simpler format)
+const codeRefactorChain2 = chainPromptTemplate.create(
+  "Refactor getUser function to improve performance",
+  [
+    "Analyze current implementation and identify bottlenecks",
+    "Research optimization patterns for similar operations",
+    "Propose 2-3 optimization strategies with trade-offs",
+    "Implement the recommended optimization",
+    "Add comprehensive tests for the refactored function",
+    "Benchmark old vs new implementation",
+    "Document changes and performance improvements"
+  ]
+);
 ```
 
 ---
@@ -218,11 +215,9 @@ codeRefactorChain.withBranches({
 const task = basicPromptTemplate.create(
   "Summarize this technical paper",
   "Focus on the methodology and results"
-);
-
-const prompt = task
+)
   .withExamples([
-    { title: "Example Paper", summary: "..." }
+    { input: "Example Paper Title", output: "Concise summary of methodology and results" }
   ])
   .withConstraints([
     "Maximum 500 words",
@@ -249,10 +244,12 @@ const task = fewShotPromptTemplate.create(
 ```javascript
 const task = refinedPromptTemplate.create({
   objective: "Generate API documentation",
-  context: "For a Node.js REST API",
-  examples: [{ endpoint: "/api/users", documentation: "..." }],
-  constraints: ["Use OpenAPI 3.0 format"],
-  format: "YAML with descriptions",
+  context: "For a Node.js REST API with 5 endpoints",
+  examples: [
+    { input: "GET /api/users/:id", output: "Retrieve user by ID. Returns 404 if not found." }
+  ],
+  constraints: ["Use OpenAPI 3.0 format", "Include all parameters and responses"],
+  format: "YAML with clear sections and descriptions",
   tone: "professional and concise"
 });
 ```
@@ -260,6 +257,20 @@ const task = refinedPromptTemplate.create({
 ### Using chain_prompt.js
 ```javascript
 const task = chainPromptTemplate.create(
+  "Build and deploy a new feature",
+  [
+    { title: "Design API endpoints and data models" },
+    { title: "Implement backend logic and tests", dependsOn: 0 },
+    { title: "Create frontend components", dependsOn: 0 },
+    { title: "Integrate frontend and backend", dependsOn: [1, 2] },
+    { title: "Perform end-to-end testing", dependsOn: 3 },
+    { title: "Deploy to staging environment", dependsOn: 4 },
+    { title: "Deploy to production", dependsOn: 5 }
+  ]
+);
+
+// Or using simpler string format
+const task2 = chainPromptTemplate.create(
   "Build and deploy a new feature",
   [
     "Design API endpoints and data models",
@@ -271,10 +282,6 @@ const task = chainPromptTemplate.create(
     "Deploy to production"
   ]
 );
-
-task.withDependencies({
-  2: [1], 3: [1], 4: [2, 3], 5: [4], 6: [5], 7: [6]
-});
 ```
 
 ---

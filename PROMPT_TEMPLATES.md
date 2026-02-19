@@ -24,9 +24,9 @@ A zero-shot prompt is a request given to an AI without any prior examples. It re
 **Purpose:** Foundational prompt template utilities
 
 Provides basic methods for constructing simple prompts with:
-- **`create(task, context)`** - Create basic task prompts
-- **`withExamples(examples)`** - Add example patterns
-- **`withConstraints(constraints)`** - Define limitations and rules
+- **`create(task, context)`** - Create basic task prompts (returns chainable builder)
+- **`withExamples(task, examples)`** - Add example patterns
+- **`withConstraints(task, constraints)`** - Define limitations and rules
 
 **Use When:** Starting with simple, single-turn tasks.
 
@@ -104,17 +104,21 @@ Instructions:
 `;
 ```
 
-### Example 2: Basic Prompt with Examples
+### Example 2: Basic Prompt with Chaining
 ```javascript
 const basicPrompt = basicPromptTemplate.create(
   "Convert camelCase to kebab-case",
   "Standard variable naming conversion"
-);
-
-basicPrompt.withExamples([
-  { input: "myVariable", output: "my-variable" },
-  { input: "userName", output: "user-name" }
-]);
+)
+  .withExamples([
+    { input: "myVariable", output: "my-variable" },
+    { input: "userName", output: "user-name" }
+  ])
+  .withConstraints([
+    "Replace uppercase with dash + lowercase",
+    "Preserve hyphenated words"
+  ])
+  .build();
 ```
 
 ### Example 3: Few-Shot Learning
@@ -122,9 +126,9 @@ basicPrompt.withExamples([
 const fewShotPrompt = fewShotPromptTemplate.create(
   "Classify sentiment",
   [
-    { input: "I love this!", sentiment: "positive" },
-    { input: "This is terrible", sentiment: "negative" },
-    { input: "It's okay", sentiment: "neutral" }
+    { input: "I love this!", output: "positive" },
+    { input: "This is terrible", output: "negative" },
+    { input: "It's okay", output: "neutral" }
   ],
   "What about this review?"
 );
@@ -135,6 +139,18 @@ const fewShotPrompt = fewShotPromptTemplate.create(
 const chainPrompt = chainPromptTemplate.create(
   "Refactor code to improve performance",
   [
+    { title: "Identify performance bottlenecks" },
+    { title: "Research optimization techniques", dependsOn: 0 },
+    { title: "Implement improvements", dependsOn: 1 },
+    { title: "Run benchmarks", dependsOn: 2 },
+    { title: "Document changes", dependsOn: 3 }
+  ]
+);
+
+// Can also use string steps
+const chainPrompt2 = chainPromptTemplate.create(
+  "Refactor code to improve performance",
+  [
     "Identify performance bottlenecks",
     "Research optimization techniques",
     "Implement improvements",
@@ -142,13 +158,6 @@ const chainPrompt = chainPromptTemplate.create(
     "Document changes"
   ]
 );
-
-chainPrompt.withDependencies({
-  2: [1],  // Step 2 depends on Step 1
-  3: [2],  // Step 3 depends on Step 2
-  4: [3],  // Step 4 depends on Step 3
-  5: [4]   // Step 5 depends on Step 4
-});
 ```
 
 ---

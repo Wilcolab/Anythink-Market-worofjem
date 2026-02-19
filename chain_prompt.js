@@ -18,12 +18,21 @@ const chainPromptTemplate = {
     prompt += `EXECUTION STEPS:\n\n`;
 
     steps.forEach((step, index) => {
-      prompt += `Step ${index + 1}: ${step.title}\n`;
-      if (step.description) {
-        prompt += `Description: ${step.description}\n`;
+      // Handle both string and object steps
+      const stepObj = (typeof step === 'string') ? { title: step } : step;
+      
+      if (!stepObj || typeof stepObj.title !== 'string' || stepObj.title.length === 0) {
+        throw new TypeError(
+          `Invalid step at index ${index}: expected a string or an object with a non-empty 'title' property.`
+        );
       }
-      if (step.output) {
-        prompt += `Expected Output: ${step.output}\n`;
+      
+      prompt += `Step ${index + 1}: ${stepObj.title}\n`;
+      if (stepObj.description) {
+        prompt += `Description: ${stepObj.description}\n`;
+      }
+      if (stepObj.output) {
+        prompt += `Expected Output: ${stepObj.output}\n`;
       }
       prompt += '\n';
     });
@@ -51,10 +60,11 @@ const chainPromptTemplate = {
   withDependencies: function(goal, steps = []) {
     let prompt = this.create(goal, steps);
 
-    prompt += '\nDEPENCIES:\n';
+    prompt += '\nDEPENDENCIES:\n';
     steps.forEach((step, index) => {
-      if (step.dependsOn !== undefined) {
-        prompt += `Step ${index + 1} depends on: Step ${step.dependsOn}\n`;
+      const stepObj = (typeof step === 'string') ? { title: step } : step;
+      if (stepObj && stepObj.dependsOn !== undefined) {
+        prompt += `Step ${index + 1} depends on: Step ${stepObj.dependsOn}\n`;
       }
     });
 
@@ -73,9 +83,12 @@ const chainPromptTemplate = {
     branches.forEach((branch, index) => {
       prompt += `BRANCH ${index + 1}: ${branch.name}\n`;
       prompt += `Steps:\n`;
-      branch.steps.forEach((step, stepIndex) => {
-        prompt += `  ${stepIndex + 1}. ${step}\n`;
-      });
+      if (branch.steps && Array.isArray(branch.steps)) {
+        branch.steps.forEach((step, stepIndex) => {
+          const stepText = (typeof step === 'string') ? step : step.title || JSON.stringify(step);
+          prompt += `  ${stepIndex + 1}. ${stepText}\n`;
+        });
+      }
       prompt += '\n';
     });
 
