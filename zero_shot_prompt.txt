@@ -1,0 +1,34 @@
+Zero-Shot Prompt Template
+=========================
+
+A zero-shot prompt is a request given to an AI without any prior examples or context.
+It relies on the AI's pre-trained knowledge to understand and respond appropriately.
+
+Example Format:
+---------------
+
+Task: [Description of what you want the AI to do]
+
+Additional Instructions:
+- [Any specific requirements]
+- [Format preferences]
+- [Tools or frameworks to use]
+
+Zero-Shot Prompt Best Practices:
+1. Be specific and clear in your request
+2. Include all necessary context
+3. Define the expected output format
+4. Mention any constraints or limitations
+5. Ask for explanation if needed
+
+Benefits:
+- No examples needed
+- Faster to set up
+- Good for well-known tasks
+- Relies on general knowledge
+
+Limitations:
+- May need iteration
+- Less precise than few-shot
+- Requires clear instructions
+- May struggle with novel tasks
